@@ -1,11 +1,15 @@
+import { app, database } from './firebase';
+import { collection, addDoc, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import { StatusBar } from 'expo-status-bar';
 import { useState } from 'react';
 import { StyleSheet, FlatList, Text, View, Image, Button, SafeAreaView, TextInput, TouchableOpacity} from 'react-native';
 import { NavigationContainer} from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { useCollection} from 'react-firebase-hooks/firestore';
 
 const Stack = createNativeStackNavigator();
 export default function App() {
+  
   return (
     <NavigationContainer>
       <Stack.Navigator initialRouteName="ListPage">
@@ -18,35 +22,73 @@ export default function App() {
 
 const ListPage = ({ navigation }) => {
   const [text, setText] = useState('');
-  const [notes, setNotes] = useState([]);
+  const [editObj, setEditObj] = useState(null);
+  const [values, loading, error] = useCollection(collection(database, "notes"))
+  const data = values?.docs.map((doc) => ({...doc.data(), id: doc.id}))
 
-  function buttonPressed() {
-    setNotes([...notes, { key: notes.length.toString(), name: text }]);
-    setText(''); 
+  async function buttonPressed() {
+    try {
+   await addDoc(collection(database, "notes"), {
+      text: text
+    })
+  } catch (err) {
+    console.log("fejl i DB" + err)
+  }
+  
+
+  }
+  async function deleteDocument(id){
+    await deleteDoc(doc(database, "notes", id))
+
+  }
+  function viewUpdateDialog(item){
+  
+    setEditObj(item)
+
+  }
+  async function saveUpdate(){
+    await updateDoc(doc(database, "notes", editObj.id), {
+       text: text
+    })
+    setText("")
+    setEditObj(null)
+
   }
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
+     { editObj &&
+     <View>
+        <TextInput  style={styles.textField}   defaultValue={editObj.text} onChangeText={setText}   />
+       <Text style={styles.text} onPress={saveUpdate}>save</Text> 
+
+  
+      </View>
+}
+
         <TextInput 
           style={styles.textField} 
           onChangeText={setText} 
+          //onChangeText={(txt) => setText(txt)}
           value={text}
           placeholder="Add a word" 
           placeholderTextColor="#999" 
         />
         <Button title="Press Me" onPress={buttonPressed} />
         <FlatList 
-  data={notes}
-  renderItem={({ item }) => (
-    <TouchableOpacity 
-      style={styles.button} 
-      onPress={() => navigation.navigate('DetailPage', { text: item.name })}
-    >
-      <Text style={styles.buttonText}>{item.name.substring(0, 30)}</Text>
-    </TouchableOpacity>
-  )}
-  keyExtractor={item => item.key.toString()} 
-/>
+  data={data}
+  renderItem={(note) => 
+  <View>
+<Text style={styles.text}>{note.item.text}</Text>
+<Text style={styles.text} onPress={() => deleteDocument(note.item.id)}>Delete</Text>
+<Text style={styles.text} onPress={() => viewUpdateDialog(note.item)}>Update</Text>
+ 
+  </View>
+  
+
+}
+  />
+
       </View>
     </SafeAreaView>
   );
